@@ -1,0 +1,2931 @@
+                            ;OM AIYAPPA
+SCANF MACRO TXT                                  ;SIMPLE MACRO TO SCAN STRING
+
+    LEA DX,TXT
+    MOV AH,0AH
+    INT 21H
+
+ENDM
+
+
+PRINTF MACRO MSG                                 ;SIMPLE MACRO TO PRINT STRING
+
+    LEA DX,MSG
+    MOV AH,09H
+    INT 21H
+
+ENDM
+
+.MODEL SMALL
+.STACK
+.DATA
+
+    
+
+    STR DB 255                                   ;CONTAINS WHOLE PRINTF() STRING
+        DB 00
+        DB 255 DUP(0)
+
+    DEFINITESI DW 0000
+    TEXT DB 255 DUP(0)                           ;CONTAINS WHAT NEEDS TO BE PRINTED BY PRINTF()
+    ARGUMENTS DB 255 DUP(0)                      ;CONTAINS ARGUMENTS TO BE PRINTED AS A WHOLE STRING SEPERATED BY COMMAS
+                                                 ;COMMA IS USED AS A DELIMETER
+    TEMP DW 0000                                 ;TEMPORAY STROAGE FOR CX
+    TEXTLEN DW 0000                              ;CONTAINS THE LENGTH OF THE TEXT
+
+    CHARCOUNT DB 00                              ;CONTAINS THE NUMBER OF CHARACTERS IN TEXT STRING
+    COMMACOUNT DB 00                             ;CONTAINS THE NUMBER OF COMMAS IN 'ARGUMENTS' ARRAY
+    ARGCOUNT DB 00                               ;CONTAINS THE NUMBER OF ARGUMENTS IN 'ARGUMENTS' ARRAY
+    FORMATCOUNT DB 00                            ;CONTAINS THE NUMBER OF '%' CHARACTERS TO CHECK NUMBER OF ARGUMENTS TO BE PRINTED
+
+    ARGLIMIT DB 00                               ;MAXIMUM NUMBER OF ARGUMENTS THAT CAN BE PRINTED WITHIN 255 CHARACTER LENGTH
+
+
+    SPACE DB 10,13,"$"                           ;FOR INCREASED READABILITY I PRINTED AN EMPTY LINE
+
+    ARGINDEXES DB 255 DUP(0)
+    TEMPBIT DB 00
+
+    ARGEQ DB 00                                  ;IF ARGUMENTS LENGTH ARE EQUAL,IT IS SET TO 1
+    ARGUNUMBER DB 01                             ;T0 USE AS INDEX
+    COUNT DB 00                                  ;TEMPORARY
+    COUNT1 DW 00
+    COUNT2 DW 00
+    ENDARG DB 00                                 ;END OF ARGUMENTS ARRAY INDEX
+    SITEMP DW 00                                 ;TEMPORARY FOR SI INDEX
+
+    STR2 DB 255 DUP(0)                        ;SHOULD ALWAYS BE GREATER NUMBER
+    STR1 DB 255 DUP(0)
+
+    EXPRESSION DB 255 DUP(0)
+
+    NUM2 DB 255 DUP(0)
+    NUM1 DB 255 DUP(0)
+    CARRY DB 255 DUP(0)
+
+    RES DB 255 DUP(0)
+    COUNT11 DB 00
+    COUNT12 DB 00
+    TEMP1 DB 00
+    DES DB 00
+    VALUE DB 00
+    VALUE1 DW 0000
+
+    OPERATOR DB 255 DUP(0)                     ;CONTAINS AN ARRAY OF OPERATORS IN SEQUENCE SPECIFIED IN EXPRESSION
+    SIEXP DW 00                                ;TEMPORARY SI INDEX STORAGE
+    C1 DB 0000                                 ;COUNT OF NUMBERS IN NUM1
+    C2 DB 0000                                 ;COUNT OF NUMBERS IN NUM2
+    SETEXP DB 00                               ;IF THIS BIT IS ONE,THERE ARE MORE THAN ONE NUMBERS TO BE ADDED
+    OPCOUNT DB 00                              ;DETERMINES NUMBER OF OPERATORS SPECIFIED
+    KL DB 00
+
+
+    ONLYNUM DB 255 DUP(0)                      ;CONTAINS NUMERICAL ARGUMENTS
+    ONLYCOUNT DB 255 DUP(0)                    ;CONTAINS ONLY COUNT OF NUMBERS IN EACH NUMERIC OPERAND
+    CTEMP DB 00                                ;TEMPORARY
+    OPCOUNT1 DB 00                             ;USED TO ACT LIKE A BIT WHICH SPECIFIES WETHER OR NOT IT'S AN ARITH OP
+
+    STOREBX DW 0000
+    STORESI DW 0000
+    SIGN DB 00                                 ;CONTAINS SIGN OF RESULT
+    CXTEMP DW 0000
+    NOOPERATION DB 00
+    OPERATIONFINISH DB 00                      ;TO CLEAR ALL RES,ETC., TO ZEROS
+
+    ZEROCOUNT DB 00                            ;COUNTS NUMBER OF ZEROES FOR ZERO TRUCATION
+    DECIDEBIT DB 00
+    SIGN1 DB 00                                ;FOR SUBTRACTION
+
+
+    OUTER DB 00                                ;FOR MULTIPLICATION
+    CARRY1 DB 255 DUP(0)                       ;FOR INTERMEDIATE CARRY WHILE ADDING SUMMANDS
+    SOMENUM DW 0000
+    SUMMAND DB 255 DUP(0)                      ;FOR STORING INTERMEDIATE SUMMANDS
+    COUNTNEED DB 00
+
+    DIVSUMMAND DB 255 DUP(0)                   ;FOR DIVISION
+    SOURCET DW 0000
+    DIVISIONBIT DB 00
+    ONLYNUM1 DB 255 DUP(0)
+    ONLYCOUNT1 DB 255 DUP(0)
+    ORIGINALCOUNT DB 00
+
+    ;THESE ARE SELF EXPLANATORY:MESSAGES THAT NEED TO BE PRINTED IF ANY EXCEPTIONS OCCUR
+
+    M1 DB 10,13,"ERROR:SEMICOLON MISSING!$"
+    M2 DB 10,13,"ERROR:DOUBLE QUOTES MISSING!$"
+    M3 DB 10,13,"ERROR:INSTRUCTION INCOMPLETE!$"
+    M4 DB 10,13,"ERROR:INVALID INPUT!$"
+    M5 DB 10,13,"ERROR:LIMITATION OF PROGRAM,FLOATING POINT NOT ALLOWED!$"
+    M6 DB 10,13,"ERROR:PARANTHESIS MISSING!$"
+    M7 DB 10,13,"ERROR:VARIABLES NOT SEPERATED BY COMMAS!$"
+    M8 DB 10,13,"ERROR:INVALID INSTRUCTION!$"
+    M9 DB 10,13,"ERROR:TOO FEW ARGUMENTS SPECIFIED!$"
+    M10 DB 10,13,"ERROR:SINGLE QUOTES MISSING!$"
+
+
+.CODE                                              ;START OF CODE SEGMENT
+
+
+   MOV AX,@DATA
+   MOV DS,AX                                       ;FOR STRING INSTRUCTIONS
+   MOV ES,AX
+                                                   ;SCANNING THE INPUT STRING
+   SCANF STR
+
+   MOV CX,0000
+   MOV CL,STR[1]
+   MOV SI,CX
+   MOV STR[SI+2],'$'                               ;ATTACHING END OF FILE CHARACTER FOR MY REFERENCE OF END OF ARRAY
+
+   CMP STR[2],'p'                                  ;SELF EXPLANATORY EXCEPTION ROUTINES THAT RUN IF A SOFTWARE FAULT OCCURS
+   JNE ERROR
+
+   CMP STR[3],'r'
+   JNE ERROR
+
+   CMP STR[4],'i'
+   JNE ERROR
+
+   CMP STR[5],'n'
+   JNE ERROR
+
+   CMP STR[6],'t'
+   JNE ERROR
+
+   CMP STR[7],'f'
+   JNE ERROR
+
+   CMP STR[8],'('
+   JNE ERROR1
+
+   CMP STR[9],'"'
+   JNE ERROR2
+
+   JMP SENTENCE
+
+   ;ERROR CHECKING FOR EXCEPTIONS
+
+   ERROR: PRINTF M8                          ;INVALID
+          JMP LAST
+
+   ERROR1: PRINTF M6                         ;PARANTHESIS
+           JMP LAST
+
+   ERROR2: PRINTF M2                         ;DOUBLE QUOTES
+            JMP LAST
+
+   ERROR3: PRINTF M1                         ;SEMICOLON MISSING
+           JMP LAST 
+
+
+                                             ;WHERE THE COMPUTATION OF PRINTING STRING BEGINS(ACTUAL PART)
+SENTENCE:
+
+   MOV SI,00                                 ;LENGTH OF STRING
+   MOV CL,STR[1]
+                                             ;FINDING IF ANY FORMAT SPECIFIERS OCCUR
+   AGAIN:                                    ;IF YES,JUMP TO MIDDLE LABEL WHICH CALLS AN APPROPRIATE SUBROUTINE
+         CMP STR[SI],'%'
+         JE MIDDLE
+         INC SI
+         LOOP AGAIN
+
+
+    MOV CX,0000                              ;OTHERWISE,NO FORMAT SPECIFIERS
+    MOV CL,STR[1]                            ;PRINT JUST THE SENTENCE WITH
+    MOV SI,CX                                ; '\n' OR '\t' IF SPECIFIED
+
+    CMP STR[SI+1],';'                        ;CHECKING IF SEMICOLON,ENDING BRACKET OR ENDING DOUBLE QUOTES ARE MISSING
+    JNE ERROR3                               ;IF YES,PRINT APPROPRIATE MESSAGES
+
+    CMP STR[SI],')'
+    JNE ERROR1
+ 
+    CMP STR[SI-1],'"'
+    JNE ERROR2
+    
+   MOV DX,0000
+                                             ;TRANSFERRING STRING TO BE PRINTED
+   LEA SI,STR[10]                            ;TO 'TEXT' ARRAY USING STRING INSTRUCTIONS
+   LEA DI,TEXT
+   CLD
+   MOV CL,STR[1]
+   SUB CL,11
+   MOV DL,CL
+   REP MOVSB
+
+   MOV SI,DX
+   MOV TEXT[SI],'$'                          ;APPENDING AN END OF FILE CHARACTER FOR
+   JMP NOMIDDLE                              ;'PRINTF' MACRO TO WORK
+
+   MIDDLE:                                   ;CALLING FORMAT_TEXT PROCEDURE,SINCE A FORMAT SPECIFIER HAS BEEN ENCOUNTERED
+          CALL FORMAT_TEXT
+
+   NOMIDDLE:                                 ;PROCEED NORMALLY IF NOT
+
+   MOV CX,0000                               ;CALCULATING LENGTH OF 'TEXT' ARRAY
+   MOV CL,STR[1]
+   SUB CL,11
+   MOV SI,00
+
+FINDNEXT:
+   BY1:                                      ;IF AN ESCAPE SEQUENCE CHARACTER HAS BEEN ENCOUNTERED
+       CMP TEXT[SI],'\'                      ;CHECK IF IT IS \n or \t
+       JE FIND
+       INC SI
+       LOOP BY1
+
+   JMP NONE
+
+    FIND:
+        CMP TEXT[SI+1],'n'                   
+        JE ATTNEW
+
+        CMP TEXT[SI+1],'t'
+        JE ATTSP
+
+        JMP FINDNEXT                              ;IF NONE,JUST PRINT '\' AS A CHARACTER
+
+  ATTNEW:
+          MOV TEXT[SI+1],0AH                      ;ATTACHING LINEFEED '0A' INSTEAD OF '\'
+          MOV TEXT[SI],0DH                        ;ATTACHING NEWLINE '0D' INSTEAD OF 'n'
+
+          ADD SI,02
+          SUB CX,2
+
+          JMP FINDNEXT
+
+  ATTSP:
+
+          MOV TEXT[SI],' '                       ;REPLACING '\' WITH SPACE
+          MOV TEXT[SI+1],' '                     ;REPLACING 't' WITH SPACE
+
+          PUSH CX
+          PUSH SI
+                                                 ;SERIES OF CALCULATIONS FOR
+          MOV CL,STR[1]                          ;\t TO WORK ON 'TEXT' ARRAY
+          SUB CX,10
+          ADD CX,TEXTLEN
+          MOV DX,SI
+          INC DX
+          MOV SI,CX
+          DEC SI
+          SUB CX,DX
+          DEC CX
+          MOV TEMP,CX
+                                                
+          BY2:                                   ;LOOP TO TRASFER ALL CHARACTERS
+              MOV AL,TEXT[SI]                    ;TO RIGHT '3' POSITIONS-
+              MOV TEXT[SI+3],AL                  ;TO APPEND 3 SPACES-
+              DEC SI                             ;FOR TAB FUNCTION
+              LOOP  BY2
+
+          MOV TEXT[SI+1],' '                     ;ATTACHING 3 SPACES
+          MOV TEXT[SI+2],' '                     ;REPLICATING A 'TAB' FIELD EFFECT
+          MOV TEXT[SI+3],' '       
+          
+          POP SI
+          POP CX
+
+          ADD SI,05                              ;INCREMENTING SI TO 5 POSITIONS-
+          MOV CX,TEMP                            ;TO FIND THE NEXT CHARACTER-
+          ADD TEXTLEN,03                         ;AFTER APPENDING A TAB FIELD
+
+         JMP FINDNEXT                            ;JUMP TO FIND IF THERE ARE ANY MORE \n or \t
+
+NONE:
+
+   CMP ARGEQ,1H
+   JE LAST
+
+   CMP TEMPBIT,1H
+   JE LAST
+
+   PRINTF SPACE
+   PRINTF TEXT                                   ;FINALLY PRINT THE FORMATTED TEXT
+   JMP LAST
+
+
+   LAST:
+                                                 ;END OF CODE
+   MOV AH,4CH
+   INT 21H
+                                                 ;IF FORMAT SPECIFIERS EXISTS,CALCULATE
+   FORMAT_TEXT PROC                              ;ARGUMENTS LIST AND ALSO TEXT LIST
+
+        PUSH CX
+
+        MOV CX,0000
+        MOV CL,STR[1]
+
+        MOV SI,CX
+                                                 ;CHECK FOR ANY ERROR CONDITIONS
+        CMP STR[SI],')'
+        JNE ER1
+
+        CMP STR[SI+1],';'
+        JNE ER2
+
+        JMP PROCEED
+
+  ER1: PRINTF M1
+       MOV ARGEQ,1H                                 ;PRINTING ERROR MESSAGES IF ANY
+       JMP PROCEEDEND
+
+  ER2: PRINTF M6
+        MOV ARGEQ,1H
+       JMP PROCEEDEND
+
+  ER3: PRINTF M7
+        MOV ARGEQ,1H
+       JMP PROCEEDEND
+
+  ER4: PRINTF M2
+        MOV ARGEQ,1H
+       JMP PROCEEDEND     
+       
+
+  PROCEED:                                         ;CHECK FURTHER IF ANY ERRORS OCCUR
+         MOV SI,10                                 ;GO TO START OF STRING AND ALSO INITIATE CL TO NUMBER OF TIMES LOOP HAS TO BE EXECUTED
+         SUB CX,10
+
+         HATOFF:
+                CMP STR[SI],'"'
+                JE STOPL
+                INC SI
+                INC CHARCOUNT                      ;CHARCOUNT:NUMBER OF CHARACTERS IN THE TEXT TO BE PRINTED
+                LOOP HATOFF
+                JMP ER4
+
+          STOPL:
+                 CMP STR[SI+1],','                 ;CHECK IF COMMA HAS BEEN INCLUDED
+                 JNE ER3
+
+     MOV CX,0000
+                                                   ;IF NO ERROR CONDITIONS-
+     LEA SI,STR+10                                 ;TRASFER THE STRING CONTAINING FORMAT SPECIFIERS-
+     LEA DI,TEXT                                   ;TO 'TEXT' ARRAY
+     CLD
+     MOV CL,CHARCOUNT
+     REP MOVSB
+
+     MOV CX,0000
+     MOV CL,CHARCOUNT
+     MOV SI,CX
+     MOV TEXT[SI],'$'                             ;APPENDING EOF FOR TEXT ARRAY
+
+     MOV CL,STR[1]
+     SUB CL,10
+     SUB CL,CHARCOUNT
+     DEC CL
+                                                   
+     MOV ARGCOUNT,CL                                ;ARGCOUNT:NUMBER OF ARGUMENTS IN ARGS LIST
+
+     MOV DX,0000
+     MOV DL,9
+     ADD DL,CHARCOUNT
+     ADD DL,2
+
+     MOV SI,DX
+     MOV DI,00
+
+     JK:                                             ;CREATING A STRING CONTAINING
+        MOV AL,STR[SI]                               ;ALL ARGUMENTS
+        MOV ARGUMENTS[DI],AL
+        INC SI
+        INC DI
+        INC ENDARG
+        LOOP JK
+                                                     ;APPENDING EOF TO ARGS LIST
+     
+     MOV ARGUMENTS[DI],'$'
+                                                     ;PROCEDURE TO CHECK IF NUMBER OF ARGUMENTS-
+
+     CALL ERRORARGS                                  ;AND NUMBER OF FORMAT SPECIFIERS ARE EQUAL..
+     CALL ARGUMENT_CHECK
+
+     CMP ARGEQ,1H
+     JE PROCEEDEND
+
+     CALL ARGINDEX
+     CALL FINDFORMAT
+
+
+  PROCEEDEND:
+         POP CX
+         RET
+
+  FORMAT_TEXT ENDP
+
+ ERRORARGS PROC                                    ;PROCEDURE TO FIND EQUALITY BETWEEN ABOVE MENTIONED SENTENCE
+
+     PUSH SI
+     PUSH CX
+     PUSH AX
+
+     MOV SI,00
+     MOV CL,ARGCOUNT
+
+     HAT1:
+          CMP ARGUMENTS[SI],','
+          JNE NO                                    ;COMMACOUNT:NUMBER OF COMMAS IN THE ARGUMENT LIST(AS DELIMITER)
+          INC COMMACOUNT
+     NO:
+          INC SI
+          LOOP HAT1
+
+     MOV SI,00
+     MOV CL,CHARCOUNT
+
+     HAT2:
+          CMP TEXT[SI],'%'
+          JNE NO1
+          INC FORMATCOUNT                           ;FORMATCOUNT:FORMAT SPECIFIERS COUNT
+       NO1:
+          INC SI
+          LOOP HAT2
+
+     MOV AL,COMMACOUNT                              ;IF COMMACOUNT NOT EQUAL TO FORMATCOUNT,
+     CMP AL,FORMATCOUNT                             ;PRINT ERROR MESSAGE AND RETURN
+     JE KILL
+
+     PRINTF M9
+     MOV ARGEQ,1H
+
+ KILL:
+     POP AX
+     POP CX
+     POP SI
+
+     RET
+
+ ERRORARGS ENDP
+
+ ARGUMENT_CHECK PROC
+
+ PUSH SI
+ PUSH CX
+ PUSH DI
+ PUSH BX
+         MOV SI,00
+
+         DAD1:
+              CMP ARGUMENTS[SI],','
+              JNE DAD2
+
+              CMP ARGUMENTS[SI+1],','
+              JE ERR9
+
+              CMP ARGUMENTS[SI+1],'$'
+              JE ERR9
+
+         DAD2:
+              CMP ARGUMENTS[SI],'$'
+              JE POPALLANDRETURN
+
+              INC SI
+              JMP DAD1
+
+ ERR9: PRINTF M9
+       MOV ARGEQ,1H
+ 
+
+ POPALLANDRETURN:
+
+ POP BX
+ POP DI
+ POP CX
+ POP SI
+ RET
+ ARGUMENT_CHECK ENDP
+       
+ ARGINDEX PROC                                   ;ARGINDEX PROC FOR ARGINDEXES ARRAY SETTING
+
+     MOV SI,01
+
+     CMP COMMACOUNT,1
+     JNE PROCCAL
+    
+     MOV CL,ENDARG
+     MOV ARGINDEXES[SI],0
+     MOV ARGINDEXES[SI+1],CL
+     JMP JAK
+
+  PROCCAL:
+     MOV SI,01                                   ;ARGINDEX ARRAY:IT'S INDEX DESCRIBES THE ARGUMENT NUMBER
+                                                 ;AND VALUE AT THAT POSITION DESCRIBES ARGUMENT'S STARTING POSITION
+     MOV BX,0000                                 ;IN 'ARGUMENTS' ARRAY
+     MOV CL,ENDARG
+
+     JK1:
+         CMP ARGUMENTS[BX],','
+         JNE NOH
+         MOV ARGINDEXES[SI],BL
+         INC SI
+     NOH:
+         INC BL
+         LOOP JK1
+
+
+     MOV CL,ENDARG                             ;FOR LAST ARGUMENT END IS '$'
+     MOV ARGINDEXES[SI],CL
+   JAK:
+     RET
+ ARGINDEX ENDP
+
+ FINDFORMAT PROC
+
+     MOV SI,00
+     MOV CL,CHARCOUNT
+
+     JK3:
+         CMP TEXT[SI],'%'
+         JE FINDFOR
+         INC SI
+         LOOP JK3
+
+         JMP LAS
+
+     FINDFOR:
+             CMP TEXT[SI+1],'d'
+             JE NUMBER
+
+             CMP TEXT[SI+1],'c'
+             JE CHARACTER
+
+             CMP TEXT[SI+1],'s'
+             JE STRING
+
+             JMP JK3
+
+    NUMBER:
+           CALL NUMBERFIND
+           INC ARGUNUMBER
+           CALL CLEARALL
+           JMP JK3
+
+    CHARACTER:
+           CALL CHARACTERFIND
+           INC ARGUNUMBER
+           JMP JK3
+
+    STRING:
+           CALL STRINGFIND
+           INC ARGUNUMBER
+           JMP JK3
+
+    LAS:
+         RET
+
+ FINDFORMAT ENDP
+
+ CLEARALL PROC                                ;TO WARD OFF BUGS RELATED TO ANY JUNK VALUES AFTER AN OPERATION
+
+      PUSH CX
+      PUSH SI
+
+      MOV CL,255
+
+      MOV COUNT11,00
+      MOV COUNT12,00
+
+    MOV STOREBX,0000
+    MOV STORESI,0000
+    MOV SIGN,00                               
+    MOV CXTEMP,0000   
+
+
+      CLEARALLSTUFF:
+                    MOV RES[SI],0
+                    MOV NUM2[SI],0
+                    MOV NUM1[SI],0
+                    MOV CARRY[SI],0  
+                    MOV STR2[SI],0               
+                    MOV STR1[SI],0
+                    MOV EXPRESSION[SI],0
+                    MOV OPERATOR[SI],0
+                    MOV ONLYNUM[SI],0                    
+                    MOV ONLYCOUNT[SI],0
+                    MOV CARRY1[SI],0H 
+                    MOV SUMMAND[SI],0  
+                    MOV DIVSUMMAND[SI],0
+                    MOV ONLYNUM1[SI],0
+                    MOV ONLYCOUNT1[SI],00
+
+                    INC SI
+
+                    LOOP CLEARALLSTUFF
+
+
+    MOV SIEXP,00                             
+    MOV C1,0000                                
+    MOV C2,0000                 
+    MOV SETEXP,00                               
+    MOV OPCOUNT,00                              
+    MOV KL,00
+
+    MOV OUTER,00                                              
+    MOV SOMENUM,0000                     
+    MOV COUNTNEED,00                  
+    MOV SOURCET,0000
+    MOV DIVISIONBIT,00
+    MOV ORIGINALCOUNT,00
+
+
+
+    MOV CTEMP,00                                
+    MOV OPCOUNT1,00                           
+
+    MOV STOREBX,0000
+    MOV STORESI,0000
+    MOV SIGN,00                                 
+    MOV CXTEMP,0000
+    MOV NOOPERATION,00
+
+    POP SI
+    POP CX
+
+    RET
+
+CLEARALL ENDP
+
+ZEROTRUNCATE PROC                          ;PROCEDURE TO TRUNCATE ZEROES FROM RES
+
+    PUSH SI
+    PUSH DI
+    PUSH CX
+
+    MOV ZEROCOUNT,00
+    MOV SI,00
+    MOV DI,00
+
+    ZEROCOUN:
+             CMP RES[SI],'0'
+             JNE STOPIMMEDIATE
+             INC SI
+             INC ZEROCOUNT
+             JMP ZEROCOUN
+
+    STOPIMMEDIATE:
+
+    CMP ZEROCOUNT,00
+    JE NOCHANGE
+
+    MOV AL,ZEROCOUNT
+    CMP AL,COUNT11
+    JNE NOCHANGE18
+
+    DEC ZEROCOUNT
+    MOV AL,ZEROCOUNT
+    SUB COUNT11,AL
+    JMP NOCHANGE
+
+NOCHANGE18:
+
+      MOV CX,0000
+      MOV CL,ZEROCOUNT
+
+      SUB COUNT11,CL
+      MOV CL,COUNT11
+         
+    VOILA:
+           MOV AL,RES[SI]
+           MOV RES[DI],AL
+           INC SI
+           INC DI
+           LOOP VOILA
+NOCHANGE:
+
+    POP CX
+    POP DI
+    POP SI
+
+    RET
+
+ZEROTRUNCATE ENDP
+
+ STRINGFIND PROC                          ;PROCEDURE TO FIND STRING
+
+      MOV ARGEQ,00H
+
+      PUSH CX
+      PUSH SI
+
+      MOV AX,0000
+      MOV AL,ARGUNUMBER
+      MOV DI,AX
+      MOV DX,0000
+      MOV DL,ARGINDEXES[DI]
+      MOV BX,0000
+      MOV BL,ARGINDEXES[DI+1]
+      MOV DI,DX
+
+      INC DI
+      DEC BX
+
+      CMP ARGUMENTS[DI],'"'
+      JNE EXCE
+
+      CMP ARGUMENTS[BX],'"'
+      JNE EXCE
+
+      MOV CX,BX
+      SUB CX,DI
+      DEC CX
+      MOV COUNT,CL                                  ;NUMBER OF CHARACTERS IN STRING
+
+      INC DI                                        ;NUMBER OF CHARACTERS IN STRING
+
+                                                 ;SHIFTING TEXT TO RIGHT TO ACCOMODATE STRING
+      MOV CX,0000
+      MOV CL,CHARCOUNT
+      SUB CX,SI
+      DEC CX
+       
+     
+      MOV COUNT1,CX
+                                                                                                                      
+
+      MOV CX,0000
+      MOV CL,COUNT
+      MOV SI,CX
+
+      CMP SI,02
+      JL NOSUB
+
+      SUB SI,02
+
+      MOV CX,0000
+      MOV CX,COUNT1
+      INC CX
+
+      MOV BX,0000
+      MOV BL,CHARCOUNT
+
+           JK5:
+              MOV AL,TEXT[BX]
+              MOV TEXT[SI+BX],AL
+              DEC BX
+              LOOP JK5
+
+      POP SI
+
+      MOV CX,0000
+      MOV CL,COUNT
+                                                ;REPLACING THE FOUND STRING
+      JK6:                                      ;IN TEXT ARRAY
+          MOV AL,ARGUMENTS[DI]
+          MOV TEXT[SI],AL
+          INC SI
+          INC DI
+          LOOP JK6
+
+          JMP LK
+
+  EXCE: PRINTF M2
+        MOV ARGEQ,1H
+
+        JMP LK
+
+  NOSUB:
+        POP SI
+
+        MOV AL,ARGUMENTS[DI]
+        MOV TEXT[SI],AL
+        INC SI
+
+        MOV SITEMP,SI
+
+  MOV CX,COUNT1
+  INC CX
+
+  POT:
+       MOV AL,TEXT[SI+1]
+       MOV TEXT[SI],AL
+       INC SI
+       LOOP POT
+
+       MOV SI,SITEMP
+  
+
+  LK:
+      POP CX
+      MOV CX,COUNT1
+
+      MOV BX,0000
+      MOV BL,CHARCOUNT
+      ADD BX,COUNT1
+      MOV CHARCOUNT,BL
+        RET
+
+ STRINGFIND ENDP
+
+ CHARACTERFIND PROC                        ;FINDS A CHARACTER FROM 'ARGUMENTS'
+                                           ;ARRAY
+  PUSH CX
+  PUSH SI
+
+      MOV AX,0000
+      MOV AL,ARGUNUMBER
+      MOV DI,AX
+      MOV DX,0000
+      MOV DL,ARGINDEXES[DI]
+      MOV BX,0000
+      MOV BL,ARGINDEXES[DI+1]
+      MOV DI,DX
+
+      INC DI
+      DEC BX
+
+      CMP ARGUMENTS[DI],27H
+      JNE EXCE1
+
+      CMP ARGUMENTS[BX],27H
+      JNE EXCE1
+
+      INC DI
+      POP SI
+
+        MOV AL,ARGUMENTS[DI]
+        MOV TEXT[SI],AL
+
+        MOV SITEMP,SI
+
+      MOV CX,0000
+      MOV CL,CHARCOUNT
+      SUB CX,SI
+      DEC CX
+
+      MOV COUNT1,CX
+
+      INC CX
+
+
+  POT1:
+      MOV AL,TEXT[SI+1]
+      MOV TEXT[SI],AL
+      INC SI
+      LOOP POT1
+
+      MOV SI,SITEMP
+
+      POP CX
+      MOV CX,COUNT1
+
+      MOV BX,0000
+      MOV BL,CHARCOUNT
+      ADD BX,COUNT1
+      MOV CHARCOUNT,BL
+      JMP HJ
+
+ EXCE1: PRINTF M10
+
+ HJ:
+    RET
+ CHARACTERFIND ENDP
+
+
+ NUMBERFIND PROC                          ;PROCEDURE TO FIND THE EXPRESSION TO BE EVALUATED
+                                          ;AND STORES IT IN 'EXPRESSION' STRING AS A CHARACTER STRING
+
+   PUSH BX
+   PUSH DI
+   PUSH CX
+   PUSH SI
+
+      MOV AX,0000
+      MOV AL,ARGUNUMBER
+      MOV DI,AX
+      MOV DX,0000
+      MOV DL,ARGINDEXES[DI]
+      MOV BX,0000
+      MOV BL,ARGINDEXES[DI+1]
+      MOV DI,DX
+
+      INC DI
+      MOV CX,BX
+      SUB CX,DI
+      INC CX
+
+      MOV SITEMP,SI
+      MOV SI,00
+
+      YU:
+         MOV AL,ARGUMENTS[DI]
+         MOV EXPRESSION[SI],AL
+         INC SI
+         INC DI
+         LOOP YU
+
+         MOV EXPRESSION[SI],'$'
+         MOV SIEXP,SI
+
+         CALL CHECK_OPERATOR                ;INITIALIZES 'OPERATOR' ARRAY WITH SIGN OF OPERANDS AND OPERATIONS
+
+         CALL ONLYNU                        ;ELIMINATES ALL OPERATORS AND CONTAINS ONLY NUMBERS
+
+         CMP ONLYCOUNT[1],0
+         JNE RIGHTHERE
+
+         CALL ONLYSTRING
+         JMP RIGHTHERE1                    ;PRINTING NUMBER AS JUST A NUMBER
+
+RIGHTHERE:
+
+         CALL CALCULATION                   ;PROCEEDS TO FIND WHICH OPERATION TO BE PERFORMED RECURSIVELY
+
+         ;FINALLY REPLACE %d WITH VALUE COMPUTED IN RES
+
+RIGHTHERE1:
+
+   POP SI
+
+         MOV CX,0000
+         MOV CL,CHARCOUNT
+         MOV DI,CX
+         SUB CX,SI
+         MOV CXTEMP,CX
+         INC CX
+
+         CALL ZEROTRUNCATE
+
+         MOV BX,0000
+         MOV BL,COUNT11
+         DEC BL
+
+         MOV AL,SIGN
+         MOV TEXT[SI],AL
+
+         BACK7:
+                MOV AL,TEXT[DI]
+                MOV TEXT[DI+BX],AL
+                DEC DI
+                LOOP BACK7
+
+
+         MOV CL,COUNT11
+         INC SI
+         MOV DI,00
+
+         BACK8:
+               MOV AL,RES[DI]
+               MOV TEXT[SI],AL
+               INC DI
+               INC SI
+               LOOP BACK8
+
+   POP CX
+   MOV CX,CXTEMP
+
+
+      MOV BX,0000                       ;UPDATES CHARCOUNT TO NUMBER OF CHARACTERS ADDED
+      MOV BL,CHARCOUNT
+      ADD BL,COUNT11
+      INC BL
+      MOV CHARCOUNT,BL
+
+ POP DI
+ POP BX
+
+
+   RET
+NUMBERFIND ENDP
+
+ONLYSTRING PROC                          ;ADDS GIVEN ARGUMENT WITH 0000 SO THAT
+                                         ;THE WHOLE ARGUMENT IS TREATED AS A STRING
+      PUSH SI
+
+      MOV SI,01
+
+      MOV OPERATOR[1],'+'
+      MOV OPERATOR[2],'+'
+      MOV OPCOUNT,1H
+
+      CMP EXPRESSION[0],'-'              ;SETTING SIGN
+      JE SIGNMINUS
+
+      MOV SIGN,'+'
+      JMP ADDPROC
+
+SIGNMINUS:
+      MOV SIGN,'-'
+
+ADDPROC:
+      MOV AL,SIGN
+      MOV OPERATOR[0],AL
+
+      CALL ADDITION              ;SETTING SIGN IF ONLY ONE NUMBER IS PRESENT
+
+
+      POP SI
+
+RET
+ONLYSTRING ENDP
+
+CHECK_OPERATOR PROC                      ;TO SET OPERATOR ARRAY
+
+     PUSH BX
+     PUSH DI
+     PUSH SI
+
+     MOV BX,0000
+     MOV BL,01
+     MOV DI,00
+     MOV SI,01
+
+     MOV CX,SIEXP
+     DEC CX
+
+     OPERCHECK:
+
+               CMP EXPRESSION[BX],'+'
+               JE SETOPA
+
+               CMP EXPRESSION[BX],'-'
+               JE SETOPS
+
+               CMP EXPRESSION[BX],'*'
+               JE SETOPM
+
+               CMP EXPRESSION[BX],'/'
+               JE SETOPD
+
+          HEREE:
+               INC BL
+               LOOP OPERCHECK
+
+               JMP LAST9
+
+   SETOPA: MOV OPERATOR[SI],'+'                ;UPDATING THE OPERATOR ARRAY
+           INC OPCOUNT                         ;OPCOUNT:CONTAINS THE NUMBER OF OPERATORS
+           CALL SIGNSET                        ;AS SPECIFIED IN 'ARGUMENTS' ARRAY
+           JMP HEREE
+           
+   SETOPS: MOV OPERATOR[SI],'-'
+           INC OPCOUNT
+           CALL SIGNSET
+           JMP HEREE
+
+   SETOPM: MOV OPERATOR[SI],'*'
+           INC OPCOUNT
+           CALL SIGNSET
+           JMP HEREE
+
+   SETOPD: MOV OPERATOR[SI],'/'
+           INC OPCOUNT
+           CALL SIGNSET
+           JMP HEREE
+
+   LAST9:
+
+
+         POP SI
+         POP DI
+         POP BX
+         RET
+
+  CHECK_OPERATOR ENDP
+
+  SIGNSET PROC                          ;VERY IMPORTANT SIGN CALCULATOR FOR OPERANDS..
+
+     MOV NOOPERATION,01
+
+     CMP KL,00
+     JNE NOTNOW
+
+     CMP EXPRESSION[0],'-'
+     JE SETEXZ
+
+     MOV OPERATOR[SI-1],'+'
+     JMP NOTNOW
+
+ SETEXZ:
+     MOV OPERATOR[SI-1],'-'
+
+ NOTNOW:
+
+     CMP EXPRESSION[BX+1],'-'
+     JE SETEXZ1
+
+     MOV OPERATOR[SI+1],'+'
+     JMP LAST10
+
+ SETEXZ1:
+
+     MOV OPERATOR[SI+1],'-'
+     INC BL                             ;TO SKIP SIGN TO BE REPRESENTED AS OPERATOR
+
+ LAST10:
+     MOV KL,01
+     ADD SI,02
+
+     RET
+
+ SIGNSET ENDP
+
+CALCULATION PROC                                ;RECURSIVELY DETERMINES WHICH OEPRATION
+                                                ;TO BE PERFORMED BASED ON
+    PUSH SI                                     ;'OPERATOR' ARRAY
+    PUSH DI
+    PUSH CX
+
+    MOV SI,01
+    MOV DI,00
+    MOV CX,0000
+    MOV CL,OPCOUNT
+
+    BEGINFIND:
+              CMP OPERATOR[SI],'+'
+              JE PROCEEDADD
+
+              CMP OPERATOR[SI],'-'
+              JE PROCEEDSUB
+
+              CMP OPERATOR[SI],'*'
+              JE PROCEEDMUL
+
+              CMP OPERATOR[SI],'/'
+              JE PROCEEDDIV
+
+      COMEBACK:
+              ADD SI,02
+              MOV AL,SIGN
+              MOV OPERATOR[SI-1],AL
+
+              MOV DECIDEBIT,01                     ;DECISION BIT TO SPECIFY THAT 
+              LOOP BEGINFIND                       ;THE OPERAND FOR NEXT OPERATION
+                                                   ;IS TO BE TAKEN FROM 'RES' ARRAY
+
+              JMP CALCULATIONENDED
+
+  PROCEEDADD:
+              CALL RESULTSIGN
+              JMP COMEBACK
+
+  PROCEEDSUB:
+              CALL RESULTSIGN
+              JMP COMEBACK
+
+  PROCEEDMUL:
+              CALL RESULTSIGN
+              JMP COMEBACK
+
+  PROCEEDDIV:
+              CALL RESULTSIGN
+              JMP COMEBACK
+
+CALCULATIONENDED:
+
+   POP CX
+   POP SI
+   POP DI
+
+   RET
+
+
+CALCULATION ENDP
+
+
+
+RESULTSIGN PROC                                           ;TO CALCULATE RESULTANT SIGN
+
+    CMP OPERATOR[SI],'+'
+    JE CALCADD
+
+    CMP OPERATOR[SI],'-'
+    JE CALCSUB
+
+    CMP OPERATOR[SI],'*'
+    JE CALCMUL
+
+    CMP OPERATOR[SI],'/'
+    JE CALCDIV
+
+    JMP LAST12
+
+ CALCADD:
+         CALL SIGNADD
+         JMP LAST12
+
+ CALCSUB:
+         CALL SIGNSUB
+         JMP LAST12
+
+ CALCMUL:
+         CALL SIGNMUL
+         JMP LAST12
+
+ CALCDIV:
+         CALL SIGNDIV
+         JMP LAST12
+
+ LAST12:
+         RET
+
+ RESULTSIGN ENDP
+
+
+
+SIGNADD PROC                                ;TENATIVELY DETERMINES SIGN OF RESULTANT AND CALL PROCEDURES APPROPRITATELY
+
+   CMP OPERATOR[SI-1],'+'
+   JE FINDNEXTOPERATOR
+
+   CMP OPERATOR[SI+1],'-'
+   JE CONFIRMEDADD2
+   JNE CONFIRMEDSUB1
+
+FINDNEXTOPERATOR:
+
+   CMP OPERATOR[SI+1],'+'
+   JE CONFIRMEDADD1
+   JNE CONFIRMEDSUB1
+
+CONFIRMEDADD1:
+
+      MOV SIGN,'+'
+      CALL ADDITION
+      JMP LAST18
+
+CONFIRMEDADD2:
+
+      MOV SIGN,'-'
+      CALL ADDITION
+      JMP LAST18
+
+CONFIRMEDSUB1:
+      
+      CALL SIGNSUB1
+      JMP LAST18
+
+LAST18:
+
+      RET
+
+SIGNADD ENDP
+
+SIGNSUB1 PROC                          ;CALCULATES RESULTANT SIGN FOR SUBTRACTION
+
+    CMP OPERATOR[SI-1],'-'
+    JE CKLI2
+
+    CMP OPERATOR[SI+1],'-'
+    JE CONFIRMEDSUB98
+    JMP LAST77
+
+CKLI2:
+    CMP OPERATOR[SI+1],'+'
+    JE CONFIRMEDSUB89
+    JMP LAST77
+
+CONFIRMEDSUB98:
+
+    CALL SUBTRACTION
+    CALL FINALSIGN1
+    JMP LAST77
+
+CONFIRMEDSUB89:
+
+    CALL SUBTRACTION
+    CALL FINALSIGN2
+
+LAST77:
+
+RET
+
+SIGNSUB1 ENDP
+
+SIGNSUB PROC                              ;SAME AS ABOVE PROCEDURE -
+                                          ;TO DECIDE SIGN BASED ON 'SIGN1' OPERAND
+   CMP OPERATOR[SI-1],'+'
+   JE FINDNEXTOPERATOR12
+
+   CMP OPERATOR[SI+1],'-'
+   JE CONFIRMEDSUB21
+   JNE CONFIRMEDSUB31
+
+FINDNEXTOPERATOR12:
+
+   CMP OPERATOR[SI+1],'+'
+   JE CONFIRMEDSUB12
+   JNE CONFIRMEDSUB31
+
+CONFIRMEDSUB12:
+
+      MOV SIGN,'+'
+      CALL SUBTRACTION
+      CALL FINALSIGN1
+      JMP LAST90
+
+CONFIRMEDSUB21:
+
+      MOV SIGN,'-'
+      CALL SUBTRACTION
+      CALL FINALSIGN2
+      JMP LAST90
+
+CONFIRMEDSUB31:
+      
+      CALL DECISION
+      JMP LAST90
+
+LAST90:
+
+  RET
+
+SIGNSUB ENDP
+
+DECISION PROC                            ;PART OF SUBTRACTION SIGN PROCEDURE
+
+   CMP OPERATOR[SI-1],'+'
+   JE CKP
+
+   CMP OPERATOR[SI+1],'+'
+   JE SOMETHI
+   JMP LAST80
+
+CKP:
+   CMP OPERATOR[SI+1],'-'
+   JE SOMETHI1
+
+SOMETHI:
+   CALL SUBTRACTION
+   CALL FINALSIGN1
+   JMP LAST80
+
+SOMETHI1:
+   CALL ADDITION
+   MOV SIGN,'+'
+
+LAST80:
+
+  RET
+
+DECISION ENDP
+
+FINALSIGN1 PROC                           ;PART OF SUBTRACTION SIGN PROCEDURE
+
+    CMP SIGN1,'+'
+    JNE NOTTHIS12
+     
+    MOV SIGN,'+'
+    JMP LAST71
+
+NOTTHIS12:
+    MOV SIGN,'-'
+
+LAST71:
+     RET
+
+FINALSIGN1 ENDP
+
+FINALSIGN2 PROC                                ;PART OF SUBTRACTION SIGN PROCEDURE
+
+    CMP SIGN1,'+'
+    JNE NOTTHIS2
+     
+    MOV SIGN,'-'
+    JMP LAST72
+
+NOTTHIS2:
+    MOV SIGN,'+'
+
+LAST72:
+     RET
+
+FINALSIGN2 ENDP
+
+SIGNMUL PROC                       ;CALCULATES SIGN FOR MULTIPLICATION
+
+   CMP OPERATOR[SI-1],'+'
+   JE MULTIPLYSIGN
+
+   CMP OPERATOR[SI+1],'-'
+   JE CONFIRMEDMUL
+   JNE MULTIPLYSIGN1
+
+MULTIPLYSIGN:
+
+   CMP OPERATOR[SI+1],'+'
+   JE CONFIRMEDMUL
+
+MULTIPLYSIGN1:
+     MOV SIGN,'-'
+     CALL MULTIPLICATION
+     JMP LAST999
+
+CONFIRMEDMUL:
+
+    MOV SIGN,'+'
+    CALL MULTIPLICATION
+
+LAST999:
+  RET
+SIGNMUL ENDP
+
+SIGNDIV PROC                             ;CALCULATES SIGN FOR DIVISION PROCEDURE
+
+   CMP OPERATOR[SI-1],'+'
+   JE DIVIDESIGN
+
+   CMP OPERATOR[SI+1],'-'
+   JE CONFIRMEDDIV12
+   JNE DIVIDESIGN123
+
+DIVIDESIGN:
+
+   CMP OPERATOR[SI+1],'+'
+   JE CONFIRMEDDIV12
+
+DIVIDESIGN123:
+
+     MOV SIGN,'-'
+     CALL DIVISION
+     JMP LAST9999
+
+CONFIRMEDDIV12:
+
+    MOV SIGN,'+'
+    CALL DIVISION
+
+LAST9999:
+
+  RET
+
+SIGNDIV ENDP
+
+
+ONLYNU PROC                                 ;CALCULTES AN ARRAY WHICH CONTAINS ONLY
+                                            ;NUMBERS WITHOUT THE OPERATOR
+     PUSH SI                                ;EX: 1234+123
+     PUSH DI                                ;ONLYNUM ARRAY CONTAINS 1234123
+     PUSH CX                                ;ONLYCOUNT ARRAY CONTAINS 43 
+     PUSH BX                                ;4->NUMBER OF CHARACTERS IN 1234
+                                            ;3->NUMBER OF CHARACTERS IN 123
+     MOV CX,SIEXP
+     DEC CX
+
+     MOV SI,00
+     MOV DI,00
+     MOV BX,0000
+
+     LIN:
+         CMP EXPRESSION[SI],'+'
+         JE NOTHINGM
+
+         CMP EXPRESSION[SI],'-'
+         JE NOTHINGM
+
+         CMP EXPRESSION[SI],'/'
+         JE NOTHINGM
+
+         CMP EXPRESSION[SI],'*'
+         JE NOTHINGM
+
+         MOV AL,EXPRESSION[SI]
+         MOV ONLYNUM[DI],AL
+         INC DI
+
+         CMP OPCOUNT1,1
+         JE IINC
+
+   NOTHINGM12:
+
+         MOV OPCOUNT1,00
+         INC ONLYCOUNT[BX]
+         JMP NOTHINGM1
+
+
+   IINC:
+         CMP SI,01
+         JE NOTHINGM12
+
+         INC BX
+         MOV CTEMP,00
+         JMP NOTHINGM12
+
+   NOTHINGM:
+         MOV OPCOUNT1,1
+
+   NOTHINGM1:
+
+         INC SI
+         LOOP LIN
+
+     POP BX
+     POP CX
+     POP DI
+     POP SI
+
+
+     RET
+
+ONLYNU ENDP
+
+FROMRESULT PROC                         ;TO ALTER ONLYCOUNT AND ONLYNUM ARRAY
+
+ PUSH DI
+ PUSH SI
+ PUSH CX
+
+ CALL ZEROTRUNCATE                      ;TO REDUCE ALL NON SIGNIFICANT ZEROES
+
+ MOV SI,STORESI
+ MOV AL,COUNT11                         ;UPDATE COUNT VALUE OF THE RESULT IN ONLYCOUNT ARRAY
+ MOV AH,ONLYCOUNT[SI]
+ MOV ONLYCOUNT[SI],AL
+
+ MOV CX,0000
+ MOV CX,STOREBX
+ ADD CL,AH
+ SUB CL,COUNT11
+
+ MOV DI,CX
+ MOV STOREBX,CX                                 ;UPDATING BX
+ MOV CL,COUNT11
+ MOV SI,00
+
+ POOL:
+      MOV AL,RES[SI]
+      MOV ONLYNUM[DI],AL
+      INC SI
+      INC DI
+      LOOP POOL
+
+
+  POP CX
+  POP SI
+  POP DI
+
+RET
+
+FROMRESULT ENDP
+
+CLEARNUMS PROC
+
+    PUSH CX
+    PUSH SI
+
+      MOV CL,255
+      MOV SI,00
+
+      CLEARLOOP:
+                MOV NUM1[SI],00
+                MOV NUM2[SI],00
+                MOV CARRY[SI],00
+                INC SI
+                LOOP CLEARLOOP
+
+    POP CX
+    POP SI
+
+    RET
+CLEARNUMS ENDP
+
+ASSIGNNUMBER PROC                     ;FOR ADDITION,ASSIGNING NUM1 AND NUM2
+                                      ;SUCH THAT NUM2 >= NUM1 FROM ONLYNUM ARRAY
+    PUSH SI
+    PUSH DI
+    PUSH CX
+    PUSH BX
+
+
+    MOV SI,00
+    MOV DI,00
+    MOV CX,0000
+    MOV BX,0000
+
+    CMP DECIDEBIT,00
+    JE NOALTER1
+
+    CALL CLEARNUMS
+    CALL FROMRESULT
+
+NOALTER1:
+
+    MOV SI,STORESI
+    MOV BX,STOREBX
+
+    MOV AL,ONLYCOUNT[SI]
+    MOV C1,AL
+    MOV AL,ONLYCOUNT[SI+1]
+
+    INC SI
+    MOV STORESI,SI
+    DEC SI
+
+    CMP C1,AL
+    JG EXCHANGE1
+
+    MOV C2,AL
+
+    LEA SI,ONLYNUM[BX]
+    LEA DI,NUM1+1
+    CLD
+    MOV CL,C1
+    MOV COUNT12,CL
+    REP MOVSB
+
+    ADD BL,C1
+
+    LEA SI,ONLYNUM[BX]
+    LEA DI,NUM2+1
+    CLD
+    MOV CL,C2
+    MOV COUNT11,CL
+    REP MOVSB
+
+    JMP LAST151
+
+EXCHANGE1:
+
+    MOV C2,AL
+
+    LEA SI,ONLYNUM[BX]
+    LEA DI,NUM2+1
+    CLD
+    MOV CL,C1
+    MOV COUNT11,CL
+    REP MOVSB
+
+    ADD BL,C1
+
+    LEA SI,ONLYNUM[BX]
+    LEA DI,NUM1+1
+    CLD
+    MOV CL,C2
+    MOV COUNT12,CL
+    REP MOVSB
+
+
+LAST151:
+
+    MOV NUM1[0],'0'
+    MOV NUM2[0],'0'
+
+    MOV STOREBX,BX
+    INC COUNT11
+    INC COUNT12
+
+    POP BX
+    POP CX
+    POP DI
+    POP SI
+
+    RET
+
+ASSIGNNUMBER ENDP
+   
+
+ADDITION PROC
+
+         PUSH SI
+         PUSH DI
+         PUSH CX
+         PUSH BX
+
+         CALL ASSIGNNUMBER                    ;ASSIGNS NUM1 AND NUM2 SUCH THAT NUM2 >= NUM1
+         CALL ADDZERO
+
+         MOV CX,0000
+         MOV SI,00
+
+         MOV CL,COUNT11
+         MOV DX,0000
+         MOV DL,COUNT11
+         MOV SI,DX
+         DEC SI        
+
+    BACK56:
+         MOV AL,NUM1[SI] 
+         CALL CONVNUM
+
+         MOV AH,AL
+
+         MOV AL,NUM2[SI]
+         CALL CONVNUM
+
+         ADD AL,AH
+
+         ADD AL,CARRY[SI]
+
+         AAM
+         CALL CONVCHAR
+         DEC BX
+         MOV RES[BX],AL
+         MOV CARRY[SI-1],AH
+
+         DEC SI
+         LOOP BACK56
+
+
+         POP BX
+         POP CX
+         POP DI
+         POP SI
+
+         RET
+
+ ADDITION ENDP
+
+ ASSIGNNUMBERSUB PROC             ;SAME DESCRIPTION AS ABOVE PROCEDURE FOR SUBTRACTION
+
+    PUSH SI
+    PUSH DI
+    PUSH CX
+    PUSH BX
+
+
+    MOV SI,00
+    MOV DI,00
+    MOV CX,0000
+    MOV BX,0000
+
+    CMP DECIDEBIT,00
+    JE NOALTER
+
+    CALL CLEARNUMS
+    CALL FROMRESULT
+
+NOALTER:
+
+    MOV SI,STORESI
+    MOV BX,STOREBX
+
+    MOV AL,ONLYCOUNT[SI]
+    MOV C1,AL
+    MOV AL,ONLYCOUNT[SI+1]
+
+    INC SI
+    MOV STORESI,SI
+    DEC SI
+
+    CMP C1,AL
+    JG EXCHANGE
+
+    MOV SIGN1,'-'
+
+    MOV C2,AL
+
+    LEA SI,ONLYNUM[BX]
+    LEA DI,NUM1
+    CLD
+    MOV CL,C1
+    MOV COUNT12,CL
+    REP MOVSB
+
+    ADD BL,C1
+
+    LEA SI,ONLYNUM[BX]
+    LEA DI,NUM2
+    CLD
+    MOV CL,C2
+    MOV COUNT11,CL
+    REP MOVSB
+
+    JMP LAST15
+
+EXCHANGE:
+
+    MOV C2,AL
+
+    MOV SIGN1,'+'
+
+    LEA SI,ONLYNUM[BX]
+    LEA DI,NUM2
+    CLD
+    MOV CL,C1
+    MOV COUNT11,CL
+    REP MOVSB
+
+    ADD BL,C1
+
+    LEA SI,ONLYNUM[BX]
+    LEA DI,NUM1
+    CLD
+    MOV CL,C2
+    MOV COUNT12,CL
+    REP MOVSB
+
+    JMP LAST15
+
+LAST15:
+    MOV AL,C2
+    CMP AL,C1
+    JNE LAST1111   
+    CALL DECIDE_WHICH_GREATER
+    JMP LAST1112
+
+LAST1111:
+
+    CALL ZEROTRUNCATESUB
+
+LAST1112:
+    MOV STOREBX,BX
+
+    POP BX
+    POP CX
+    POP DI
+    POP SI
+
+
+ RET
+
+ ASSIGNNUMBERSUB ENDP
+
+ DECIDE_WHICH_GREATER PROC       ;IF IN ABOVE PROCEDURE,COUNT OF NUM2 == COUNT OF NUM1
+                                 ;DECIDES WHICH IS GREATER AND ASSIGNS TO NUM2
+ PUSH SI
+ PUSH DI
+ PUSH CX
+
+ MOV CX,0000
+ MOV CL,C1                    ;DOES'NT MATTER BECAUSE C1 == C2
+
+ MOV SI,00
+ MOV DI,00
+
+ POLL:
+      MOV AL,NUM2[SI]
+      CALL CONVNUM
+      MOV AH,AL
+      MOV AL,NUM1[SI]
+      CALL CONVNUM
+
+      CMP AH,AL
+
+      JG STOPNOW
+      JL TOSWAPTWO
+      INC SI
+      LOOP POLL
+
+      MOV SIGN1,'+'
+
+      JMP STOPNOW1
+
+ TOSWAPTWO:
+
+      MOV CL,C1
+      MOV SI,00
+
+ POLL1:
+       MOV AL,NUM2[SI]
+       MOV AH,NUM1[SI]
+       XCHG AL,AH
+       MOV NUM2[SI],AL
+       MOV NUM1[SI],AH
+       INC SI
+       LOOP POLL1
+
+       MOV SIGN1,'+'
+       JMP STOPNOW1
+
+ STOPNOW:
+       MOV SIGN1,'-'
+
+ STOPNOW1:
+
+ POP CX
+ POP DI
+ POP SI
+
+ RET
+ DECIDE_WHICH_GREATER ENDP
+
+
+ DECIDE_WHICH_GREATER1 PROC       ;IF IN ABOVE PROCEDURE,COUNT OF NUM2 == COUNT OF NUM1
+                                 ;DECIDES WHICH IS GREATER AND ASSIGNS TO NUM2
+ PUSH SI
+ PUSH DI
+ PUSH CX
+
+ MOV CX,0000
+ MOV CL,COUNT11                    ;DOES'NT MATTER BECAUSE C1 == C2
+
+ MOV SI,00
+ MOV DI,00
+
+ POLL3:
+      MOV AL,NUM2[SI]
+      CALL CONVNUM
+      MOV AH,AL
+      MOV AL,NUM1[SI]
+      CALL CONVNUM
+
+      CMP AH,AL
+
+      JG STOPNOW3
+      JL TOSWAPTWO1
+      INC SI
+      LOOP POLL3
+
+      MOV SIGN1,'+'
+
+      JMP STOPNOW123
+
+ TOSWAPTWO1:
+
+      MOV CL,COUNT11
+      MOV SI,00
+
+ POLL12:
+       MOV AL,NUM2[SI]
+       MOV AH,NUM1[SI]
+       XCHG AL,AH
+       MOV NUM2[SI],AL
+       MOV NUM1[SI],AH
+       INC SI
+       LOOP POLL12
+
+       CMP SIGN1,'-'
+       JE STOPNOW5
+
+       MOV SIGN1,'-'
+       JMP STOPNOW123
+
+ STOPNOW3:
+
+       CMP SIGN1,'-'
+       JE STOPNOW4
+
+       MOV SIGN1,'+'
+       JMP STOPNOW123
+
+ STOPNOW4:
+       MOV SIGN,'-'
+       JMP STOPNOW123
+
+ STOPNOW5:
+       MOV SIGN1,'+'
+
+
+ STOPNOW123:
+
+ POP CX
+ POP DI
+ POP SI
+
+ RET
+ DECIDE_WHICH_GREATER1 ENDP
+
+ ZEROTRUNCATESUB PROC
+
+ PUSH SI
+ PUSH BX
+ PUSH DI
+ PUSH CX
+
+       MOV CX,0000
+       MOV ZEROCOUNT,00
+
+       MOV SI,00
+
+       GETT:
+            CMP NUM2[SI],'0'
+            JNE GETT1
+            INC SI
+            INC ZEROCOUNT
+            JMP GETT
+
+   GETT1:
+         MOV CL,COUNT11
+         SUB CL,ZEROCOUNT
+
+         CMP CL,COUNT12
+         JG GETT2
+
+         MOV AL,COUNT11
+         MOV AH,COUNT12
+         SUB AL,AH
+         MOV CL,AL
+
+         MOV DI,00
+         MOV SI,CX
+         MOV CL,COUNT12
+         MOV COUNT11,CL
+
+         GETT3:
+               MOV AL,NUM2[SI]
+               MOV NUM2[DI],AL
+               INC SI
+               INC DI
+               LOOP GETT3
+
+         CALL DECIDE_WHICH_GREATER1
+
+GETT2:
+ MOV ZEROCOUNT,00
+
+ POP CX
+ POP DI
+ POP BX
+ POP SI
+
+ RET
+
+ ZEROTRUNCATESUB ENDP
+
+
+CLEARCARRY PROC         ;TO WARD OFF BUGS RELATED TO CARRY IN MULTIPLICATION
+
+ PUSH CX
+ PUSH SI
+
+ MOV CX,0000
+ MOV CL,255
+ MOV SI,00
+
+ JOKE:
+      MOV CARRY[SI],0H
+      MOV CARRY1[SI],0H
+      MOV SUMMAND[SI],0H
+      INC SI
+      LOOP JOKE
+
+ POP SI
+ POP CX
+
+ RET
+
+ CLEARCARRY ENDP
+
+ CLEARRESULT PROC         ;TO WARD OFF BUGS RELATED TO DIVISION AND MULTIPLICATION
+   
+    PUSH CX
+    PUSH SI
+
+    MOV CX,0000
+    MOV CL,255
+    MOV SI,00
+
+    JOK8:
+         MOV RES[SI],0H
+         INC SI
+         LOOP JOK8
+
+    POP SI
+    POP CX
+
+    RET
+
+ CLEARRESULT ENDP
+
+ MULTIPLICATION PROC       ;TO CALCULATE MULTIPLICATION RESUTL
+
+  PUSH SI
+  PUSH DI
+  PUSH CX
+  PUSH BX
+
+           CALL ASSIGNNUMBERSUB
+           CALL CONVERTNUMBERS                   ;TO CONVERT FROM CHARACTER ARRAY
+           CALL CLEARCARRY                       ;-TO ARRAY OF HEXA NUMBERS
+           CALL CLEARRESULT
+
+    MOV SOMENUM,0000
+
+    MOV BX,0000
+    MOV BL,COUNT12
+    MOV COUNTNEED,BL
+    MOV DI,BX
+    DEC DI
+
+ OUTLOOP1:
+
+    MOV BX,0000
+    MOV BL,COUNT11
+    MOV SI,BX
+    DEC SI
+    ADD BL,BL
+    DEC BL
+
+    SUB BX,SOMENUM
+
+    CALL CLEARCARRY
+    CALL CALSUMMAND
+
+    MOV AL,CARRY1[BX]
+    MOV SUMMAND[BX],AL
+
+    CALL ADDTORES
+
+    DEC DI
+    INC SOMENUM
+    DEC COUNTNEED
+    JNE OUTLOOP1
+
+MOV CX,0000
+MOV CL,COUNT11
+ADD CL,CL
+MOV COUNT11,CL
+
+CALL CONVERTRESULT                    ;TO CONVERT FROM NUMBERS TO CHARACTERS
+
+POP BX
+POP CX
+POP DI
+POP SI
+
+    RET
+
+MULTIPLICATION ENDP
+
+ADDTORES PROC                      ;A SEPERATE PROCEDURE JUST TO ADD THE PARTIAL PRODUCT
+                                   ;-TO THE RES ARRAY
+  PUSH CX
+  PUSH SI
+  PUSH DI
+  PUSH BX
+
+
+         MOV CX,0000
+         MOV SI,00
+
+         MOV CL,COUNT11
+         ADD CL,CL
+         MOV SI,CX
+         DEC SI        
+
+    BACK567:
+         MOV AL,SUMMAND[SI] 
+
+         MOV AH,AL
+
+         MOV AL,RES[SI]
+
+         ADD AL,AH
+
+         ADD AL,CARRY[SI]
+
+         AAM
+         MOV RES[SI],AL
+         MOV CARRY[SI-1],AH
+
+         DEC SI
+         LOOP BACK567
+
+
+
+  POP BX
+  POP DI
+  POP SI
+  POP CX
+
+  RET
+
+ADDTORES ENDP
+
+
+CALSUMMAND PROC                  ;CALCULATES INTERMEDIATE SUMMANDS
+
+     MOV CL,COUNT11
+     
+     INLOOP1:
+
+            MOV AL,NUM1[DI]
+
+            MOV DX,0000
+            MOV DL,NUM2[SI]
+            MUL DL
+            ADD AL,CARRY1[BX]
+            AAM
+            MOV CARRY1[BX-1],AH          ;CARRY FOR INTERMEDIATE SUMMAND
+            MOV SUMMAND[BX],AL
+    
+      DEC SI
+      DEC BX
+
+   LOOP INLOOP1
+
+
+   RET
+ CALSUMMAND ENDP
+
+
+ CONVERTRESULT PROC                  ;CONVERTS NUMBER ARRAY TO A CHARACTER ARRAY
+
+     PUSH SI
+     PUSH DI
+     PUSH CX
+
+     MOV CX,0000
+     MOV CL,COUNT11
+     MOV SI,00
+
+     LIKE:
+            MOV AL,RES[SI]
+            CALL CONVCHAR
+            MOV RES[SI],AL
+            INC SI
+            LOOP LIKE
+  
+
+    POP CX
+    POP DI
+    POP SI
+
+    RET
+
+ CONVERTRESULT ENDP
+
+ CONVERTNUMBERS PROC                     ;CONVERTS NUMBERS FROM CHARACTER ARRAY TO HEXA ARRAY
+
+  PUSH CX
+  PUSH SI
+  PUSH DI
+
+  MOV SI,00
+  MOV DI,00
+  MOV CX,0000
+
+  MOV CL,COUNT11
+
+  CONVERT:
+          MOV AL,NUM2[SI]
+          CALL CONVNUM
+          MOV NUM2[SI],AL
+          INC SI
+          LOOP CONVERT
+
+  MOV CL,COUNT12
+  MOV SI,00
+
+  CONVERT1:
+          MOV AL,NUM1[SI]
+          CALL CONVNUM
+          MOV NUM1[SI],AL
+          INC SI
+          LOOP CONVERT1
+
+  POP DI
+  POP SI
+  POP CX
+
+  RET
+
+ CONVERTNUMBERS ENDP
+
+ CLEARDIV PROC
+
+   PUSH CX
+   PUSH SI
+
+   MOV CX,0000
+   MOV CL,255
+   MOV SI,00
+
+   KIUL:
+        MOV DIVSUMMAND[SI],0H
+        INC SI
+        LOOP KIUL
+
+   MOV SOURCET,0000
+
+   POP CX
+   POP SI
+ RET
+ CLEARDIV ENDP
+
+
+
+ DIVISION PROC            ;PROCEDURE TO CALCULATE REMINDER AND ALSO QUOTIENT
+                          ;AND ALSO PRINTS QUOTIENT AS RESULT
+ PUSH SI
+ PUSH DI                  ;REFER TO:SLOW DIVISION IN WIKIPEDIA FOR MORE INFO
+ PUSH CX
+ PUSH BX
+      
+ MOV SI,00
+ MOV DI,00
+ MOV CX,0000
+ MOV BX,0000
+
+         CALL CLEARDIV
+         CALL CLEARCARRY
+         CALL CLEARRESULT
+         CALL CLEARNUMS
+
+         CALL ASSIGNNUMBERSUB
+         CALL REPLICATE
+
+         MOVEHERE12:
+
+                  CALL ASSIGNNEW
+
+                  CMP RES[0],'0'
+                  JE STOPMOVENOW
+
+                  CMP SIGN1,'-'
+                  JE STOPMOVENOW
+
+                  MOV DIVISIONBIT,01H
+           
+
+                  CALL SUBTRACTION
+
+                  CALL INCREMENTOR                ;INFINITE INCREMENTOR(COUNTER)        
+                 
+                  JMP MOVEHERE12
+
+  STOPMOVENOW:
+           CMP DIVSUMMAND[0],0H
+           JNE YERC
+
+           PRINTF M5
+
+           MOV TEMPBIT,1H
+
+           JMP YERC1
+
+    YERC:
+           CALL CONVERT99
+           CALL ASSIGNTORESULTDIV
+
+YERC1:
+ MOV DIVISIONBIT,0H
+
+ POP BX
+ POP CX
+ POP DI
+ POP SI
+
+ RET
+
+ DIVISION ENDP
+
+ASSIGNTORESULTDIV PROC         ;ASSIGNS RESULT CALCULATED TO 'RES' ARRAY
+
+PUSH SI
+PUSH DI
+PUSH CX
+
+       MOV CX,0000
+       MOV CX,SOURCET
+       INC CX
+
+       MOV COUNT11,CL
+       MOV SI,00
+
+       POLL88:
+              MOV AL,DIVSUMMAND[SI]
+              MOV RES[SI],AL
+              INC SI
+              LOOP POLL88
+
+POP CX
+POP DI
+POP SI
+RET
+ASSIGNTORESULTDIV ENDP
+
+REPLICATE PROC                     ;CONTAINS A COPY OF NUM2 AND NUM1 IN ONLYNUM1 ARRAY
+                                   ;AND THEIR COUNTS IN ONLYCOUNT1 ARRAY
+PUSH SI
+PUSH DI
+PUSH CX
+
+    MOV CX,0000
+    MOV SI,00
+    MOV DI,00
+
+    MOV CL,COUNT11
+    MOV ORIGINALCOUNT,CL
+    MOV ONLYCOUNT1[0],CL
+
+    YUFO:
+         MOV AL,NUM2[SI]
+         MOV ONLYNUM1[DI],AL
+         INC SI
+         INC DI
+         LOOP YUFO
+
+
+    MOV SI,00
+
+    MOV CL,COUNT12
+    MOV ONLYCOUNT1[1],CL
+
+    YUFO1:
+         MOV AL,NUM1[SI]
+         MOV ONLYNUM1[DI],AL
+         INC SI
+         INC DI
+         LOOP YUFO1
+
+
+POP CX
+POP DI
+POP SI
+
+RET
+
+REPLICATE ENDP
+
+ASSIGNNEW PROC             ;ASSIGNS NUM2 AND NUM1 FOR DIVISION IN PARTICULAR
+
+PUSH SI
+PUSH DI
+PUSH CX
+PUSH BX
+
+       CMP DIVISIONBIT,00
+       JE STSIGNM1
+
+       CALL ZEROTRUNCATE
+
+       MOV CX,0000
+
+       MOV AL,COUNT11
+       MOV ONLYCOUNT1[0],AL
+
+       MOV AL,ONLYCOUNT1[0]
+       MOV AH,ONLYCOUNT1[1]
+
+       CMP AL,AH
+       JL STSIGNM
+
+
+       LEA SI,RES
+       LEA DI,NUM2
+       CLD
+       MOV CL,COUNT11
+       REP MOVSB
+
+       MOV BX,0000
+       MOV BL,ORIGINALCOUNT
+
+       LEA SI,ONLYNUM1[BX]
+       LEA DI,NUM1
+       CLD
+       MOV CX,0000
+       MOV CL,COUNT12
+       REP MOVSB
+       
+
+       MOV SIGN1,'+'
+       JMP STSIGNM1
+
+STSIGNM:
+       MOV SIGN1,'-'
+
+STSIGNM1:
+
+POP BX
+POP CX
+POP DI
+POP SI
+
+RET
+ASSIGNNEW ENDP
+     
+
+INCREMENTOR PROC                ;AN INFINITE COUNTER THAT COUNTS UPTO -
+                                ;10^255(10 RAISED TO POWER 255)
+ PUSH SI
+
+ MOV SI,SOURCET
+
+        INC DIVSUMMAND[SI]
+
+
+        CMP DIVSUMMAND[SI],0AH
+        JNE NOCHA1
+
+        CMP SI,00
+        JNE CHA1
+
+        MOV AL,DIVSUMMAND[SI]
+        AAM
+
+        MOV DIVSUMMAND[SI],AH
+        MOV DIVSUMMAND[SI+1],AL
+
+        INC SI
+        JMP NOCHA1
+
+   CHA1:
+        CALL DOSOMETHING99
+
+  NOCHA1:
+
+  MOV SOURCET,SI
+
+ POP SI
+
+ RET
+
+INCREMENTOR ENDP
+
+ DOSOMETHING99 PROC     ;PART OF COUNTER FOR DIVISION
+
+    MOV DI,SI
+
+ ABOVE99:
+
+    CMP DI,00
+    JE BELOW99
+
+    MOV AL,DIVSUMMAND[DI]
+    AAM
+
+    ADD DIVSUMMAND[DI-1],AH
+    MOV DIVSUMMAND[DI],AL
+
+    DEC DI
+
+    CMP DIVSUMMAND[DI],0AH
+    JE ABOVE99
+    JNE THATSALL12
+
+ BELOW99:
+
+     MOV AL,DIVSUMMAND[DI]
+     AAM
+
+     MOV DIVSUMMAND[DI],AH
+     MOV DIVSUMMAND[DI+1],AL
+
+     INC SI
+     MOV SOURCET,SI
+
+ THATSALL12:
+
+      RET
+
+ DOSOMETHING99 ENDP
+
+ CONVERT99 PROC
+   PUSH CX
+   PUSH SI
+
+
+   MOV CX,0000
+   MOV CX,SOURCET
+   INC CX
+
+   MOV SI,00
+
+   AGAIN21:
+          MOV AL,DIVSUMMAND[SI]
+          CALL CONVCHAR
+          MOV DIVSUMMAND[SI],AL
+          INC SI
+          LOOP AGAIN21
+
+   
+   POP SI
+   POP CX
+
+   RET
+
+ CONVERT99 ENDP
+ 
+
+ SUBTRACTIONONE PROC                         ;IF THERE IS ONLY ONE NUMBER
+                                             ;IN BOTH NUM1 AND NUM2
+         PUSH SI
+         PUSH DI
+         PUSH CX
+         PUSH BX
+
+
+         MOV AL,NUM2[0]
+         CALL CONVNUM
+         MOV AH,AL
+
+         MOV AL,NUM1[0]
+         CALL CONVNUM
+
+         CMP AH,AL
+         JL DO_TWO_THINGS
+
+         SUB AH,AL
+         MOV AL,AH
+
+         JMP LAST99
+
+   DO_TWO_THINGS:
+         SUB AL,AH
+
+   LAST99:
+         CALL CONVCHAR
+         MOV RES[0],AL
+
+
+         POP BX
+         POP CX
+         POP DI
+         POP SI
+
+         RET
+  SUBTRACTIONONE ENDP
+
+ SUBTRACTION PROC                            ;FOR NUM1 AND NUM2 HAVING GREATER THAN ONE DIGIT NUMBER
+
+         PUSH SI
+         PUSH DI
+         PUSH CX
+         PUSH BX
+
+         CMP DIVISIONBIT,01
+         JE JACKAND1
+
+         CALL CLEARNUMS                          ;CLEAR NUM1,NUM2 AND CARRY ARRAYSS
+         CALL ASSIGNNUMBERSUB                    ;ASSIGNS NUM1 AND NUM2 SUCH THAT NUM2 >= NUM1
+JACKAND1:
+
+         CALL CLEARCARRY
+         CALL CLEARRESULT
+
+         CMP COUNT11,1
+         JNE PROCEID
+
+         CALL SUBTRACTIONONE
+         JMP AFTERTHIS1
+
+PROCEID:
+         CALL ADDZERO
+
+         MOV CX,0000
+         MOV SI,00
+
+         MOV CL,COUNT11
+         MOV DX,0000
+         MOV DL,COUNT11
+         MOV SI,DX
+         DEC SI        
+
+    BACK:
+         MOV AL,NUM2[SI] 
+         CALL CONVNUM
+
+         CMP AL,0H
+         JE CKL2
+
+         SUB AL,CARRY[SI]                  ;TO SUBSTRACT CARRY ALSO
+
+         MOV AH,AL
+
+         MOV AL,NUM1[SI]
+         CALL CONVNUM
+         JMP NOPE
+
+ CKL2:
+         MOV AH,AL
+
+         MOV AL,NUM1[SI]
+         CALL CONVNUM
+
+         CMP AL,0H
+         JE NOPE1
+
+         CALL DECIDEALOT1
+         
+         JMP NOPE
+
+ NOPE1:
+         CALL DECIDEALOT
+ NOPE:
+         CMP AH,AL
+         JL SUBULTA
+
+         SUB AH,AL
+         MOV AL,AH
+         JMP AFTERTHIS
+ SUBULTA:
+         ADD AH,0AH
+         MOV CARRY[SI-1],1H
+         SUB AH,AL
+         MOV AL,AH
+
+ AFTERTHIS:
+         AAM
+         CALL CONVCHAR
+         DEC BX
+         MOV RES[BX],AL
+
+         DEC SI
+         LOOP BACK
+
+
+  AFTERTHIS1:
+
+         POP BX
+         POP CX
+         POP DI
+         POP SI
+
+         RET
+
+ SUBTRACTION ENDP
+
+ DECIDEALOT1 PROC                      ;SPECIAL CASES IN SUBTRACTION WHEN- 
+                                       ;0-7 IS CALCULATED
+     MOV AH,0AH
+     MOV CARRY[SI-1],1H
+     SUB AH,CARRY[SI]
+
+     RET
+ DECIDEALOT1 ENDP
+
+ DECIDEALOT PROC
+
+     CMP CARRY[SI],0H
+     JE DONOTHINGHERE
+
+     MOV AH,0AH
+     MOV CARRY[SI-1],1H
+     SUB AH,CARRY[SI]
+
+DONOTHINGHERE:
+
+     RET
+
+ DECIDEALOT ENDP
+
+
+
+  ADDZERO PROC
+
+         PUSH SI
+         PUSH DI
+
+         MOV DL,COUNT11
+         MOV DH,COUNT12
+         SUB DL,DH
+         JZ BACK1                             ;MEANING,SIZE OF NUM1 == NUM2 -
+                                              ;-DON'T WASTE TIME IN APPENDING ZEROS
+         MOV AL,DL
+         DAA
+
+         PUSH CX
+         MOV CX,0000
+         MOV CL,AL                  ;NUMBER OF ZEROS TO APPEND FOR NUM1
+         MOV SI,00
+         MOV DX,0000
+         MOV DL,COUNT12
+         MOV DI,DX
+         DEC DI
+         MOV VALUE1,DI
+         MOV VALUE,DL                     ;NUMBER OF BITS TO SHIFT
+         ZRA1:
+          ZRA:
+              MOV DH,NUM1[DI]
+              MOV NUM1[DI+1],DH
+              DEC DI
+              DEC DL                                           
+              JNE ZRA
+
+              MOV NUM1[SI],'0'
+              INC SI
+              MOV DL,VALUE
+              INC VALUE1
+              MOV DI,VALUE1
+              LOOP ZRA1
+
+         POP CX
+
+         JMP BACK1                                   
+
+    BACK1:
+         MOV BX,0000
+         MOV BL,COUNT11
+
+         POP DI
+         POP SI
+
+         RET
+
+  ADDZERO ENDP
+
+
+
+    CONVNUM PROC                   ;TABLE FOR CONVERTING CHARACTERS TO HEXA NUMBERS
+
+           CMP AL,'0'
+           JNE CH1
+           MOV AL,0H
+           RET
+
+     CH1:
+           CMP AL,'1'
+           JNE CH2
+           MOV AL,1H
+           RET
+
+     CH2:
+           CMP AL,'2'
+           JNE CH3
+           MOV AL,2H
+           RET
+     CH3:
+           CMP AL,'3'
+           JNE CH4
+           MOV AL,3H
+           RET
+     CH4:
+           CMP AL,'4'
+           JNE CH5
+           MOV AL,4H
+           RET
+     CH5:
+           CMP AL,'5'
+           JNE CH6
+           MOV AL,5H
+           RET
+
+     CH6:
+           CMP AL,'6'
+           JNE CH7
+           MOV AL,6H
+           RET
+     CH7:
+           CMP AL,'7'
+           JNE CH8
+           MOV AL,7H
+           RET
+
+     CH8:
+           CMP AL,'8'
+           JNE CH9
+           MOV AL,8H
+           RET
+     CH9:
+           CMP AL,'9'
+           JNE ST1
+           MOV AL,9H
+
+     ST1:
+           RET
+
+
+    CONVNUM ENDP                 ;TABLE FOR CONVERTING HEXA INTO CORRESPONDING CHARACTERS
+
+
+
+          
+    CONVCHAR PROC
+
+          CMP AL,0H
+          JNE CHECK1
+          MOV AL,'0'
+          RET
+
+    CHECK1:
+          CMP AL,1H
+          JNE CHECK2
+          MOV AL,'1'
+          RET
+
+    CHECK2:
+          CMP AL,2H
+          JNE CHECK3
+          MOV AL,'2'
+          RET
+
+    CHECK3:
+          CMP AL,3H
+          JNE CHECK4
+          MOV AL,'3'
+          RET
+
+    CHECK4:
+          CMP AL,4H
+          JNE CHECK5
+          MOV AL,'4'
+          RET
+    CHECK5:
+          CMP AL,5H
+          JNE CHECK6
+          MOV AL,'5'
+          RET
+    CHECK6:
+          CMP AL,6H
+          JNE CHECK7
+          MOV AL,'6'
+          RET
+    CHECK7:
+          CMP AL,7H
+          JNE CHECK8
+          MOV AL,'7'
+          RET
+    CHECK8:
+          CMP AL,8H
+          JNE CHECK9
+          MOV AL,'8'
+          RET
+    CHECK9:
+          CMP AL,9H
+          JNE CHECK10
+          MOV AL,'9'
+          RET
+    CHECK10:
+
+          RET
+
+  CONVCHAR ENDP
+
+END                                                 ;END ASSEMBLER DIRECTIVE
+
+
